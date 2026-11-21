@@ -1,30 +1,31 @@
-import { describe, expect, test } from "bun:test";
-import { buildCfHtml, buildHtmlDocument, renderMarkdown } from "../src/index";
+import assert from "node:assert/strict";
+import { describe, test } from "node:test";
+import { buildCfHtml, buildHtmlDocument, renderMarkdown } from "../src/index.ts";
 
 describe("safe Markdown rendering", () => {
 	test("renders useful formatting", () => {
 		const html = renderMarkdown("# Heading\n\n- **bold**\n- `code`");
-		expect(html).toContain("<h1>Heading</h1>");
-		expect(html).toContain("<strong>bold</strong>");
-		expect(html).toContain("<code>code</code>");
+		assert.match(html, /<h1>Heading<\/h1>/);
+		assert.match(html, /<strong>bold<\/strong>/);
+		assert.match(html, /<code>code<\/code>/);
 	});
 
 	test("does not emit raw HTML, active links, or remote images", () => {
 		const html = renderMarkdown('<script>alert(1)</script>\n\n[x](javascript:alert(1))\n\n![pixel](https://tracker.invalid/pixel)');
-		expect(html).not.toContain("<script>");
-		expect(html).not.toContain("javascript:");
-		expect(html).not.toContain("<img");
-		expect(html).not.toContain("tracker.invalid");
-		expect(html).toContain("[Image: pixel]");
+		assert.doesNotMatch(html, /<script>/);
+		assert.doesNotMatch(html, /javascript:/);
+		assert.doesNotMatch(html, /<img/);
+		assert.doesNotMatch(html, /tracker\.invalid/);
+		assert.match(html, /\[Image: pixel\]/);
 	});
 });
 
 describe("clipboard formats", () => {
 	test("builds an HTML document with fragment markers", () => {
 		const html = buildHtmlDocument("**hello**");
-		expect(html).toContain("<!--StartFragment-->");
-		expect(html).toContain("<strong>hello</strong>");
-		expect(html).toContain("<!--EndFragment-->");
+		assert.match(html, /<!--StartFragment-->/);
+		assert.match(html, /<strong>hello<\/strong>/);
+		assert.match(html, /<!--EndFragment-->/);
 	});
 
 	test("builds byte-correct CF_HTML offsets for Unicode", () => {
@@ -36,7 +37,7 @@ describe("clipboard formats", () => {
 		const endHtml = value("EndHTML");
 		const startFragment = value("StartFragment");
 		const endFragment = value("EndFragment");
-		expect(new TextDecoder().decode(bytes.slice(startHtml, endHtml))).toBe(html);
-		expect(new TextDecoder().decode(bytes.slice(startFragment, endFragment))).toContain("Hello 👋");
+		assert.equal(new TextDecoder().decode(bytes.slice(startHtml, endHtml)), html);
+		assert.match(new TextDecoder().decode(bytes.slice(startFragment, endFragment)), /Hello 👋/);
 	});
 });

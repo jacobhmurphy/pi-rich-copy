@@ -1,6 +1,25 @@
-import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
-import { Marked } from "@oh-my-pi/pi-utils/marked";
+import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { Marked } from "marked";
+
+interface ExtensionHost {
+	registerCommand(
+		name: string,
+		options: {
+			description: string;
+			handler: (args: string, context: CommandContext) => Promise<void>;
+		},
+	): void;
+}
+
+interface CommandContext {
+	ui: {
+		notify(message: string, type?: "info" | "warning" | "error"): void;
+	};
+	sessionManager: {
+		getBranch(): readonly unknown[];
+	};
+}
 
 const START_FRAGMENT = "<!--StartFragment-->";
 const END_FRAGMENT = "<!--EndFragment-->";
@@ -119,13 +138,26 @@ function latestAssistantMarkdown(branch: readonly unknown[]): string | undefined
 }
 
 async function runHelper(command: string[], payload: unknown): Promise<void> {
-	const child = Bun.spawn(command, {
-		stdin: new TextEncoder().encode(JSON.stringify(payload)),
-		stdout: "pipe",
-		stderr: "pipe",
+	const [executable, ...args] = command;
+	if (!executable) throw new Error("Clipboard helper command is empty");
+
+	const child = spawn(executable, args, {
+		stdio: ["pipe", "ignore", "pipe"],
+		windowsHide: true,
 	});
-	const [exitCode, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
-	if (exitCode !== 0) throw new Error(stderr.trim() || `${command[0]} exited with code ${exitCode}`);
+	child.stderr.setEncoding("utf8");
+	let stderr = "";
+	child.stderr.on("data", chunk => {
+		stderr += chunk;
+	});
+
+	const { promise, resolve, reject } = Promise.withResolvers<number>();
+	child.once("error", reject);
+	child.stdin.once("error", reject);
+	child.once("close", code => resolve(code ?? -1));
+	child.stdin.end(JSON.stringify(payload));
+	const exitCode = await promise;
+	if (exitCode !== 0) throw new Error(stderr.trim() || `${executable} exited with code ${exitCode}`);
 }
 
 export async function writeRichClipboard(plainText: string, html: string): Promise<void> {
@@ -136,19 +168,24 @@ export async function writeRichClipboard(plainText: string, html: string): Promi
 	}
 	if (process.platform === "win32") {
 		const helper = fileURLToPath(new URL("./helpers/write-windows.ps1", import.meta.url));
-		const powershell = Bun.which("powershell.exe") ?? Bun.which("pwsh.exe") ?? Bun.which("pwsh");
-		if (!powershell) throw new Error("PowerShell is required to write rich clipboard data on Windows");
-		await runHelper([powershell, "-NoProfile", "-STA", "-ExecutionPolicy", "Bypass", "-File", helper], {
+		const payload = {
 			plainText,
 			cfHtml: buildCfHtml(html),
-		});
-		return;
+		};
+		for (const powershell of ["powershell.exe", "pwsh.exe", "pwsh"]) {
+			try {
+				await runHelper([powershell, "-NoProfile", "-STA", "-ExecutionPolicy", "Bypass", "-File", helper], payload);
+				return;
+			} catch (error) {
+				if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
+			}
+		}
+		throw new Error("PowerShell is required to write rich clipboard data on Windows");
 	}
 	throw new Error(`Rich clipboard copying is not supported on ${process.platform}`);
 }
 
-export default function richCopyExtension(pi: ExtensionAPI): void {
-	pi.setLabel("Rich Copy");
+export default function richCopyExtension(pi: ExtensionHost): void {
 	pi.registerCommand("copy-rich", {
 		description: "Copy the latest assistant reply as rich HTML and plain text",
 		handler: async (args, ctx) => {
