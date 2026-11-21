@@ -12,8 +12,8 @@ let pasteboard = NSPasteboard.general
 pasteboard.clearContents()
 
 guard pasteboard.setString(payload.html, forType: .html) else {
-    throw NSError(domain: "omp-rich-copy", code: 1, userInfo: [NSLocalizedDescriptionKey: "Could not write HTML to the pasteboard"])
+    throw NSError(domain: "pi-rich-copy", code: 1, userInfo: [NSLocalizedDescriptionKey: "Could not write HTML to the pasteboard"])
 }
 guard pasteboard.setString(payload.plainText, forType: .string) else {
-    throw NSError(domain: "omp-rich-copy", code: 2, userInfo: [NSLocalizedDescriptionKey: "Could not write plain text to the pasteboard"])
+    throw NSError(domain: "pi-rich-copy", code: 2, userInfo: [NSLocalizedDescriptionKey: "Could not write plain text to the pasteboard"])
 }

@@ -13,7 +13,7 @@ An extension for Pi and OMP that copies the latest assistant reply to the system
 Install the GitHub repository:
 
 ```sh
-pi install git:github.com/jacobhmurphy/omp-rich-copy
+pi install git:github.com/jacobhmurphy/pi-rich-copy
 ```
 
 Restart Pi after installing the extension. To pin a released version, append its tag, for example `@v0.2.0`.
@@ -23,8 +23,8 @@ Restart Pi after installing the extension. To pin a released version, append its
 Clone the repository, install its Markdown renderer, and link it as a user plugin:
 
 ```sh
-git clone https://github.com/jacobhmurphy/omp-rich-copy.git
-cd omp-rich-copy
+git clone https://github.com/jacobhmurphy/pi-rich-copy.git
+cd pi-rich-copy
 bun install
 omp plugin link --scope user "$PWD"
 ```
